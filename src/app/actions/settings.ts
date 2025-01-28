@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/app/lib/firebase-admin";
-import { Timestamp, FieldValue } from "firebase-admin/firestore";
+import { Timestamp } from "firebase-admin/firestore";
 import { BLIND75_CATEGORIES } from "@/app/data/blind75";
 import { NEETCODE150_CATEGORIES } from "@/app/data/neetcode150";
 
@@ -33,20 +33,22 @@ interface ReviewHistoryEntry {
 export async function setInterviewDate(
   userId: string,
   date: Date,
-  listType: "blind75" | "neetcode150"
+  selectedList: "blind75" | "neetcode150"
 ): Promise<boolean> {
   try {
-    const userRef = db.collection("users").doc(userId);
+    const settingsRef = db.collection("settings").doc(userId);
 
     // First update the settings
-    await userRef.update({
-      "settings.interviewDate": Timestamp.fromDate(date),
-      "settings.autoScheduleEnabled": true,
-      "settings.selectedList": listType,
-    });
+    await settingsRef.set(
+      {
+        interviewDate: Timestamp.fromDate(date),
+        selectedList,
+      },
+      { merge: true }
+    );
 
     // Then schedule the problems
-    const scheduleSuccess = await scheduleProblems(userId, date, listType);
+    const scheduleSuccess = await scheduleProblems(userId, date, selectedList);
     if (!scheduleSuccess) {
       throw new Error("Failed to schedule problems");
     }
@@ -56,12 +58,8 @@ export async function setInterviewDate(
     console.error("Error setting interview date:", error);
     // Attempt to rollback settings update if scheduling failed
     try {
-      const userRef = db.collection("users").doc(userId);
-      await userRef.update({
-        "settings.interviewDate": FieldValue.delete(),
-        "settings.autoScheduleEnabled": false,
-        "settings.selectedList": FieldValue.delete(),
-      });
+      const settingsRef = db.collection("settings").doc(userId);
+      await settingsRef.delete();
     } catch (rollbackError) {
       console.error("Error rolling back settings:", rollbackError);
     }
@@ -173,13 +171,12 @@ async function scheduleProblems(
 
 export async function getInterviewSettings(userId: string) {
   try {
-    const userDoc = await db.collection("users").doc(userId).get();
-    const data = userDoc.data() || {};
-    const settings = data.settings || {};
+    // Changed from users collection to settings collection
+    const settingsDoc = await db.collection("settings").doc(userId).get();
+    const settings = settingsDoc.data() || {};
 
     return {
       interviewDate: settings.interviewDate?.toDate(),
-      autoScheduleEnabled: settings.autoScheduleEnabled || false,
       selectedList: settings.selectedList,
     };
   } catch (error) {

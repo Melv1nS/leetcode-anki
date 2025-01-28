@@ -130,25 +130,28 @@ export async function toggleSkipReview(
   }
 }
 
-export async function clearUserProgress(
-  userId: string,
-  selectedList: "blind75" | "neetcode150"
-): Promise<boolean> {
+export async function clearUserProgress(userId: string): Promise<boolean> {
   try {
     const batch = db.batch();
     const userRef = db.collection("users").doc(userId);
     const settingsRef = db.collection("settings").doc(userId);
 
-    // Clear progress
-    batch.update(userRef, {
-      completedProblems: [],
-      problemStats: {},
-    });
+    // Check if user document exists
+    const userDoc = await userRef.get();
+    if (!userDoc.exists) {
+      batch.set(userRef, {
+        completedProblems: [],
+        problemStats: {},
+      });
+    } else {
+      batch.update(userRef, {
+        completedProblems: [],
+        problemStats: {},
+      });
+    }
 
-    // Clear interview date
-    batch.update(settingsRef, {
-      [`${selectedList}InterviewDate`]: null,
-    });
+    // Delete the entire settings document
+    batch.delete(settingsRef);
 
     await batch.commit();
     return true;
