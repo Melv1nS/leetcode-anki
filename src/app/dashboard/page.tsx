@@ -187,34 +187,60 @@ export default function Dashboard() {
   ) => {
     if (!user?.id) return;
 
-    const now = new Date();
-    const nextReviewDate = getNextReviewDate(
-      problem.difficulty,
-      problem.reviewCount + 1,
-      confidence
-    );
-
-    const newProblemStats = { ...problemStats };
-    const existingStats = problemStats[problem.id];
-
-    newProblemStats[problem.id] = {
-      ...existingStats,
-      lastCompleted: now.toISOString(),
-      nextReviewDate: nextReviewDate.toISOString(),
-      reviewCount: (existingStats.reviewCount || 0) + 1,
-      lastConfidence: confidence,
-      reviewHistory: [
-        ...(existingStats.reviewHistory || []),
-        {
-          date: now.toISOString(),
-          confidence,
-        },
-      ],
-    };
-
-    setProblemStats(newProblemStats);
-
     try {
+      const now = new Date();
+      const existingStats = problemStats[problem.id] || {
+        reviewCount: 0,
+        reviewHistory: [],
+        lastConfidence: 1,
+      };
+
+      console.log("Debug - Input values:", {
+        difficulty: problem.difficulty,
+        reviewCount: (existingStats.reviewCount || 0) + 1,
+        confidence,
+      });
+
+      const nextReviewDate = getNextReviewDate(
+        problem.difficulty,
+        (existingStats.reviewCount || 0) + 1,
+        confidence
+      );
+
+      console.log("Debug - Generated date:", nextReviewDate);
+
+      // Validate that we have a valid date
+      if (
+        !(nextReviewDate instanceof Date) ||
+        isNaN(nextReviewDate.getTime())
+      ) {
+        console.log("Debug - Invalid date details:", {
+          isDate: nextReviewDate instanceof Date,
+          timestamp:
+            nextReviewDate instanceof Date ? nextReviewDate.getTime() : null,
+          dateValue: nextReviewDate,
+        });
+        throw new Error("Invalid next review date generated");
+      }
+
+      const newProblemStats = { ...problemStats };
+      newProblemStats[problem.id] = {
+        ...existingStats,
+        lastCompleted: now.toISOString(),
+        nextReviewDate: nextReviewDate.toISOString(),
+        reviewCount: (existingStats.reviewCount || 0) + 1,
+        lastConfidence: confidence,
+        reviewHistory: [
+          ...(existingStats.reviewHistory || []),
+          {
+            date: now.toISOString(),
+            confidence,
+          },
+        ],
+      };
+
+      setProblemStats(newProblemStats);
+
       const success = await toggleProblemStatus(
         user.id,
         problem.id,
@@ -228,7 +254,6 @@ export default function Dashboard() {
       toast.success("Review completed!");
     } catch (err) {
       console.error("Failed to update review status:", err);
-      setProblemStats(problemStats);
       toast.error("Failed to update review status");
     }
   };
