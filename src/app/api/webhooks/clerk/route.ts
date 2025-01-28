@@ -57,7 +57,7 @@ export async function POST(req: Request) {
     console.log("Processing webhook event type:", eventType);
 
     if (eventType === "user.created") {
-      const { id, email_addresses, username, first_name, last_name } = evt.data;
+      const { id, email_addresses, first_name, last_name } = evt.data;
       if (!id) {
         return new Response("Missing user ID", { status: 400 });
       }
@@ -69,14 +69,13 @@ export async function POST(req: Request) {
         await auth.createUser({
           uid: id,
           email: primaryEmail,
-          displayName: username || `${first_name} ${last_name}`.trim(),
+          displayName: `${first_name} ${last_name}`.trim(),
         });
 
         // Create user document in Firestore
         await db.collection("users").doc(id).set({
           uid: id,
           email: primaryEmail,
-          username: username,
           firstName: first_name,
           lastName: last_name,
           createdAt: new Date().toISOString(),
@@ -88,7 +87,7 @@ export async function POST(req: Request) {
     }
 
     if (eventType === "user.updated") {
-      const { id, email_addresses, username, first_name, last_name } = evt.data;
+      const { id, email_addresses, first_name, last_name } = evt.data;
       if (!id) {
         return new Response("Missing user ID", { status: 400 });
       }
@@ -99,13 +98,12 @@ export async function POST(req: Request) {
         // Update Firebase auth user
         await auth.updateUser(id, {
           email: primaryEmail,
-          displayName: username || `${first_name} ${last_name}`.trim(),
+          displayName: `${first_name} ${last_name}`.trim(),
         });
 
         // Update user document in Firestore
         await db.collection("users").doc(id).update({
           email: primaryEmail,
-          username: username,
           firstName: first_name,
           lastName: last_name,
           updatedAt: new Date().toISOString(),
