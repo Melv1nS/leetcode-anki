@@ -130,15 +130,27 @@ export async function toggleSkipReview(
   }
 }
 
-export async function clearUserProgress(userId: string): Promise<boolean> {
+export async function clearUserProgress(
+  userId: string,
+  selectedList: "blind75" | "neetcode150"
+): Promise<boolean> {
   try {
+    const batch = db.batch();
     const userRef = db.collection("users").doc(userId);
+    const settingsRef = db.collection("settings").doc(userId);
 
-    await userRef.update({
+    // Clear progress
+    batch.update(userRef, {
       completedProblems: [],
       problemStats: {},
     });
 
+    // Clear interview date
+    batch.update(settingsRef, {
+      [`${selectedList}InterviewDate`]: null,
+    });
+
+    await batch.commit();
     return true;
   } catch (error) {
     console.error("Error clearing user progress:", error);

@@ -169,7 +169,8 @@ export default function Dashboard() {
     if (!user?.id) return;
 
     try {
-      const success = await clearUserProgress(user.id);
+      // Clear both progress and interview date
+      const success = await clearUserProgress(user.id, selectedList);
       if (!success) throw new Error("Failed to clear progress");
 
       setCompletedProblems(new Set());
