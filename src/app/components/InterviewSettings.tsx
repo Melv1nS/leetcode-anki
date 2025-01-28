@@ -21,7 +21,7 @@ export function InterviewSettings({ onSetDate }: InterviewSettingsProps) {
       await onSetDate(new Date(selectedDate));
       setIsOpen(false);
     } catch (error) {
-      console.error('Failed to set interview date:', error);
+      console.error("Failed to set interview date:", error);
     } finally {
       setIsSubmitting(false);
     }
@@ -49,7 +49,10 @@ export function InterviewSettings({ onSetDate }: InterviewSettingsProps) {
             </Dialog.Title>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label htmlFor="interview-date" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label
+                  htmlFor="interview-date"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                >
                   When is your interview?
                 </label>
                 <input
@@ -57,7 +60,7 @@ export function InterviewSettings({ onSetDate }: InterviewSettingsProps) {
                   id="interview-date"
                   value={selectedDate}
                   onChange={(e) => setSelectedDate(e.target.value)}
-                  min={new Date().toISOString().split('T')[0]}
+                  min={new Date().toISOString().split("T")[0]}
                   className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                   required
                 />
@@ -76,7 +79,7 @@ export function InterviewSettings({ onSetDate }: InterviewSettingsProps) {
                   disabled={!selectedDate || isSubmitting}
                   className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50"
                 >
-                  {isSubmitting ? 'Setting...' : 'Set Date'}
+                  {isSubmitting ? "Setting..." : "Set Date"}
                 </button>
               </div>
             </form>
@@ -85,4 +88,4 @@ export function InterviewSettings({ onSetDate }: InterviewSettingsProps) {
       </Dialog>
     </>
   );
-} 
+}

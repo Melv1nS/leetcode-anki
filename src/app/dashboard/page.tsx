@@ -4,10 +4,14 @@ import { useUser, SignOutButton } from "@clerk/nextjs";
 import { useState, useEffect } from "react";
 import { BLIND75_CATEGORIES } from "@/app/data/blind75";
 import { NEETCODE150_CATEGORIES } from "@/app/data/neetcode150";
-import type { UserProblem } from "@/app/types/problems";
+import type { UserProblem, ProblemStats } from "@/app/types/problems";
 import { DueProblems } from "@/app/components/DueProblems";
 import { DifficultyBadge } from "@/app/components/DifficultyBadge";
-import { getCompletedProblems, toggleProblemStatus, getUserProgress, toggleSkipReview, clearUserProgress } from "@/app/actions/problems";
+import {
+  toggleProblemStatus,
+  getUserProgress,
+  clearUserProgress,
+} from "@/app/actions/problems";
 import { toast } from "react-hot-toast";
 import { ConfidenceModal } from "@/app/components/ConfidenceModal";
 import { getNextReviewDate } from "@/app/utils/spaced-repetition";
@@ -16,31 +20,42 @@ import { InterviewSettings } from "@/app/components/InterviewSettings";
 import Link from "next/link";
 import { ProblemListSelector } from "@/app/components/ProblemListSelector";
 import { setInterviewDate } from "@/app/actions/settings";
+import type { Problem } from "@/app/types/problems";
 
 export default function Dashboard() {
   const { user, isLoaded } = useUser();
-  const [selectedList, setSelectedList] = useState<"blind75" | "neetcode150">("blind75");
+  const [selectedList, setSelectedList] = useState<"blind75" | "neetcode150">(
+    "blind75"
+  );
   const [isLoading, setIsLoading] = useState(true);
-  const [completedProblems, setCompletedProblems] = useState<Set<string>>(new Set());
-  const [problemStats, setProblemStats] = useState<Record<string, any>>({});
-  const [selectedProblem, setSelectedProblem] = useState<UserProblem | null>(null);
+  const [completedProblems, setCompletedProblems] = useState<Set<string>>(
+    new Set()
+  );
+  const [problemStats, setProblemStats] = useState<
+    Record<string, ProblemStats>
+  >({});
+  const [selectedProblem, setSelectedProblem] = useState<UserProblem | null>(
+    null
+  );
   const [showConfidence, setShowConfidence] = useState(false);
   const [showClearConfirmation, setShowClearConfirmation] = useState(false);
 
   const fetchUserProgress = async () => {
     if (!user?.id) return;
-    
+
     try {
       const progress = await getUserProgress(user.id);
-      // Only mark problems as completed if they exist in both arrays and stats
-      const validCompletedProblems = progress.completedProblems.filter(
-        id => progress.problemStats[id]
+      const validCompletedProblems = (progress.completedProblems || []).filter(
+        (id) => progress.problemStats[id]
       );
       setCompletedProblems(new Set(validCompletedProblems));
-      setProblemStats(progress.problemStats);
+      setProblemStats(progress.problemStats || {});
     } catch (error) {
-      console.error('Error fetching progress:', error);
-      toast.error('Failed to load your progress');
+      console.error("Error fetching progress:", error);
+      toast.error("Failed to load your progress");
+      // Set default values on error
+      setCompletedProblems(new Set());
+      setProblemStats({});
     } finally {
       setIsLoading(false);
     }
@@ -52,19 +67,31 @@ export default function Dashboard() {
     }
   }, [isLoaded, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleProblemToggle = async (problem: UserProblem) => {
+  const handleProblemToggle = async (
+    problem: Problem & Partial<ProblemStats>
+  ) => {
     if (!user?.id) return;
-    
+
+    const userProblem: UserProblem = {
+      ...problem,
+      userId: user.id,
+      nextReviewDate: new Date(),
+      reviewCount: 0,
+      lastConfidence: problem.lastConfidence || 1,
+    };
+
     if (!completedProblems.has(problem.id)) {
-      setSelectedProblem(problem);
+      setSelectedProblem(userProblem);
       setShowConfidence(true);
     } else {
-      // Handle unchecking directly
-      await handleConfidenceSelect(problem, null);
+      await handleConfidenceSelect(userProblem, null);
     }
   };
 
-  const handleConfidenceSelect = async (problem: UserProblem, confidence: 1 | 2 | 3 | 4 | null) => {
+  const handleConfidenceSelect = async (
+    problem: UserProblem,
+    confidence: 1 | 2 | 3 | 4 | null
+  ) => {
     if (!user?.id) return;
 
     const isCompleting = confidence !== null;
@@ -74,19 +101,23 @@ export default function Dashboard() {
     if (isCompleting) {
       newCompletedProblems.add(problem.id);
       const now = new Date();
-      const nextReviewDate = getNextReviewDate(problem.difficulty, 0, confidence);
-      
+      const nextReviewDate = getNextReviewDate(
+        problem.difficulty,
+        0,
+        confidence
+      );
+
       const existingStats = problemStats[problem.id];
       newProblemStats[problem.id] = {
-        ...existingStats, // Preserve existing stats if any
-        lastCompleted: now,
-        nextReviewDate,
+        ...existingStats,
+        lastCompleted: now.toISOString(),
+        nextReviewDate: nextReviewDate.toISOString(),
         completionCount: (existingStats?.completionCount || 0) + 1,
         lastConfidence: confidence,
         reviewHistory: [
           ...(existingStats?.reviewHistory || []),
           {
-            date: now,
+            date: now.toISOString(),
             confidence,
           },
         ],
@@ -102,59 +133,36 @@ export default function Dashboard() {
 
     try {
       const success = await toggleProblemStatus(
-        user.id, 
-        problem.id, 
-        isCompleting, 
+        user.id,
+        problem.id,
+        isCompleting,
         confidence || undefined,
         problem.difficulty
       );
-      if (!success) throw new Error('Failed to update problem status');
-      
-      toast.success(isCompleting ? 'Problem marked as completed!' : 'Problem marked as incomplete');
-    } catch (error) {
+      if (!success) throw new Error("Failed to update problem status");
+
+      toast.success(
+        isCompleting
+          ? "Problem marked as completed!"
+          : "Problem marked as incomplete"
+      );
+    } catch (err) {
+      console.error("Failed to update problem status:", err);
       // Revert on error
       if (isCompleting) {
         newCompletedProblems.delete(problem.id);
         delete newProblemStats[problem.id];
       } else {
         newCompletedProblems.add(problem.id);
-        // Restore previous stats
         newProblemStats[problem.id] = problemStats[problem.id];
       }
       setCompletedProblems(newCompletedProblems);
       setProblemStats(newProblemStats);
-      toast.error('Failed to update problem status');
+      toast.error("Failed to update problem status");
     }
-    
+
     setShowConfidence(false);
     setSelectedProblem(null);
-  };
-
-  const handleSkipReviewToggle = async (problemId: string, skipReview: boolean) => {
-    if (!user?.id) return;
-
-    const newProblemStats = { ...problemStats };
-    newProblemStats[problemId] = {
-      ...newProblemStats[problemId],
-      skipReview,
-    };
-
-    // Optimistically update UI
-    setProblemStats(newProblemStats);
-
-    try {
-      const success = await toggleSkipReview(user.id, problemId, skipReview);
-      if (!success) throw new Error('Failed to update review status');
-      toast.success(skipReview ? 'Problem marked as not for review' : 'Problem added back to review schedule');
-    } catch (error) {
-      // Revert on error
-      newProblemStats[problemId] = {
-        ...newProblemStats[problemId],
-        skipReview: !skipReview,
-      };
-      setProblemStats(newProblemStats);
-      toast.error('Failed to update review status');
-    }
   };
 
   const handleClearProgress = async () => {
@@ -162,42 +170,48 @@ export default function Dashboard() {
 
     try {
       const success = await clearUserProgress(user.id);
-      if (!success) throw new Error('Failed to clear progress');
-      
-      // Clear local state
+      if (!success) throw new Error("Failed to clear progress");
+
       setCompletedProblems(new Set());
       setProblemStats({});
-      toast.success('Progress cleared successfully');
-    } catch (error) {
-      toast.error('Failed to clear progress');
+      toast.success("Progress cleared successfully");
+    } catch (err) {
+      console.error("Failed to clear progress:", err);
+      toast.error("Failed to clear progress");
     }
   };
 
-  const handleReviewComplete = async (problem: UserProblem, confidence: 1 | 2 | 3 | 4) => {
+  const handleReviewComplete = async (
+    problem: UserProblem,
+    confidence: 1 | 2 | 3 | 4
+  ) => {
     if (!user?.id) return;
 
     const now = new Date();
-    const nextReviewDate = getNextReviewDate(problem.difficulty, problem.reviewCount + 1, confidence);
-    
+    const nextReviewDate = getNextReviewDate(
+      problem.difficulty,
+      problem.reviewCount + 1,
+      confidence
+    );
+
     const newProblemStats = { ...problemStats };
     const existingStats = problemStats[problem.id];
-    
+
     newProblemStats[problem.id] = {
       ...existingStats,
-      lastCompleted: now,
-      nextReviewDate,
+      lastCompleted: now.toISOString(),
+      nextReviewDate: nextReviewDate.toISOString(),
       reviewCount: (existingStats.reviewCount || 0) + 1,
       lastConfidence: confidence,
       reviewHistory: [
         ...(existingStats.reviewHistory || []),
         {
-          date: now,
+          date: now.toISOString(),
           confidence,
         },
       ],
     };
 
-    // Optimistically update UI
     setProblemStats(newProblemStats);
 
     try {
@@ -208,30 +222,29 @@ export default function Dashboard() {
         confidence,
         problem.difficulty
       );
-      if (!success) throw new Error('Failed to update review status');
-      
-      // Fetch fresh data to ensure everything is in sync
+      if (!success) throw new Error("Failed to update review status");
+
       await fetchUserProgress();
-      toast.success('Review completed!');
-    } catch (error) {
-      // Revert on error
+      toast.success("Review completed!");
+    } catch (err) {
+      console.error("Failed to update review status:", err);
       setProblemStats(problemStats);
-      toast.error('Failed to update review status');
+      toast.error("Failed to update review status");
     }
   };
 
   const handleSetInterviewDate = async (date: Date) => {
     if (!user?.id) return;
-    
+
     try {
       const success = await setInterviewDate(user.id, date, selectedList);
-      if (!success) throw new Error('Failed to set interview date');
-      
+      if (!success) throw new Error("Failed to set interview date");
+
       await fetchUserProgress();
-      toast.success('Interview date set successfully!');
-    } catch (error) {
-      console.error('Error setting interview date:', error);
-      toast.error('Failed to set interview date');
+      toast.success("Interview date set successfully!");
+    } catch (err) {
+      console.error("Error setting interview date:", err);
+      toast.error("Failed to set interview date");
     }
   };
 
@@ -243,11 +256,12 @@ export default function Dashboard() {
     );
   }
 
-  const currentProblemList = selectedList === "blind75" ? BLIND75_CATEGORIES : NEETCODE150_CATEGORIES;
+  const currentProblemList =
+    selectedList === "blind75" ? BLIND75_CATEGORIES : NEETCODE150_CATEGORIES;
 
   // Calculate due problems
   const dueProblems = Object.entries(problemStats)
-    .filter(([id, stats]) => {
+    .filter(([, stats]) => {
       if (!stats || !stats.nextReviewDate) return false;
       const isNotSkipped = !stats.skipReview;
       const isDue = new Date() >= new Date(stats.nextReviewDate);
@@ -255,31 +269,20 @@ export default function Dashboard() {
     })
     .map(([id, stats]) => {
       const problem = currentProblemList
-        .flatMap(cat => cat.problems)
-        .find(p => p.id === id);
-      
+        .flatMap((cat) => cat.problems)
+        .find((p) => p.id === id);
+
       if (!problem) return null;
 
       return {
         ...problem,
         ...stats,
-        nextReviewDate: new Date(stats.nextReviewDate),
+        nextReviewDate: stats.nextReviewDate
+          ? new Date(stats.nextReviewDate)
+          : new Date(),
       };
     })
     .filter((problem): problem is UserProblem => problem !== null);
-
-  // Get all completed problems with their stats
-  const completedProblemsWithStats = Object.entries(problemStats)
-    .map(([id, stats]) => {
-      const problem = currentProblemList
-        .flatMap(cat => cat.problems)
-        .find(p => p.id === id);
-      return {
-        ...problem!,
-        ...stats,
-        nextReviewDate: new Date(stats.nextReviewDate),
-      };
-    });
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -316,14 +319,14 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <ProblemListSelector 
+        <ProblemListSelector
           selectedList={selectedList}
           onListChange={setSelectedList}
         />
 
         {/* Due Problems Section */}
         <div className="mb-6">
-          <DueProblems 
+          <DueProblems
             problems={dueProblems}
             onReviewComplete={handleReviewComplete}
           />
@@ -372,10 +375,12 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <ConfidenceModal 
+      <ConfidenceModal
         isOpen={showConfidence}
         onClose={() => setShowConfidence(false)}
-        onSelect={(confidence) => selectedProblem && handleConfidenceSelect(selectedProblem, confidence)}
+        onSelect={(confidence) =>
+          selectedProblem && handleConfidenceSelect(selectedProblem, confidence)
+        }
       />
 
       <ConfirmationModal

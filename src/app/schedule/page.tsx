@@ -2,17 +2,18 @@
 
 import { useUser } from "@clerk/nextjs";
 import { useState, useEffect } from "react";
-import { ReviewSchedule } from "@/app/components/ReviewSchedule";
 import { getUserProgress } from "@/app/actions/problems";
 import { getInterviewSettings } from "@/app/actions/settings";
-import type { UserProblem } from "@/app/types/problems";
 import Link from "next/link";
 import { Calendar } from "@/app/components/Calendar";
+import type { ProblemStats } from "@/app/types/problems";
 
 export default function SchedulePage() {
   const { user, isLoaded } = useUser();
   const [isLoading, setIsLoading] = useState(true);
-  const [problemStats, setProblemStats] = useState<Record<string, any>>({});
+  const [problemStats, setProblemStats] = useState<
+    Record<string, ProblemStats>
+  >({});
   const [interviewDate, setInterviewDate] = useState<Date | undefined>();
 
   useEffect(() => {
@@ -25,21 +26,26 @@ export default function SchedulePage() {
           getInterviewSettings(user.id),
         ]);
         setProblemStats(progress.problemStats);
-        
+
         if (settings?.interviewDate) {
           // Keep the date but set time to midnight
           const date = new Date(settings.interviewDate);
           // Use UTC methods to avoid timezone issues
-          const utcDate = new Date(Date.UTC(
-            date.getUTCFullYear(),
-            date.getUTCMonth(),
-            date.getUTCDate(),
-            0, 0, 0, 0
-          ));
+          const utcDate = new Date(
+            Date.UTC(
+              date.getUTCFullYear(),
+              date.getUTCMonth(),
+              date.getUTCDate(),
+              0,
+              0,
+              0,
+              0
+            )
+          );
           setInterviewDate(utcDate);
         }
       } catch (error) {
-        console.error('Error fetching data:', error);
+        console.error("Error fetching data:", error);
       } finally {
         setIsLoading(false);
       }
@@ -58,6 +64,14 @@ export default function SchedulePage() {
     );
   }
 
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p>Please sign in to view your schedule.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -72,13 +86,27 @@ export default function SchedulePage() {
             Back to Dashboard
           </Link>
         </div>
-        
-        <Calendar 
-          problemStats={problemStats} 
-          userId={user.id} 
+
+        <Calendar
+          problemStats={Object.entries(problemStats).reduce(
+            (acc, [key, value]) => ({
+              ...acc,
+              [key]: {
+                ...value,
+                reviewHistory: value.reviewHistory?.map((entry) => ({
+                  ...entry,
+                  date:
+                    typeof entry.date === "string"
+                      ? entry.date
+                      : (entry.date as Date).toISOString(),
+                })),
+              },
+            }),
+            {} as Record<string, ProblemStats>
+          )}
           interviewDate={interviewDate}
         />
       </div>
     </div>
   );
-} 
+}

@@ -5,63 +5,18 @@ import { DifficultyBadge } from "@/app/components/DifficultyBadge";
 import type { UserProblem } from "@/app/types/problems";
 import { ConfidenceModal } from "@/app/components/ConfidenceModal";
 
-interface DueProblem extends UserProblem {
-  nextReviewDate: Date;
-  reviewCount: number;
-  lastConfidence: 1 | 2 | 3 | 4; // 1: Again, 2: Hard, 3: Good, 4: Easy
-}
-
-const CONFIDENCE_LABELS = {
-  "1": "Again",
-  "2": "Hard",
-  "3": "Good",
-  "4": "Easy",
-} as const;
-
-function getNextReviewDate(
-  difficulty: UserProblem["difficulty"],
-  reviewCount: number,
-  confidence: 1 | 2 | 3 | 4
-): Date {
-  const intervals = {
-    Easy: [2, 4, 8, 15, 30],
-    Medium: [3, 7, 14, 30, 60],
-    Hard: [4, 10, 20, 40, 80],
-  };
-
-  // If confidence is 1, reset to first interval
-  // If confidence is 2, stay at current interval
-  // If confidence is 3, move to next interval
-  // If confidence is 4, skip next interval
-
-  const baseIntervals = intervals[difficulty];
-  let nextInterval: number;
-
-  if (confidence === 1) {
-    nextInterval = baseIntervals[0];
-  } else if (confidence === 2) {
-    nextInterval =
-      baseIntervals[Math.min(reviewCount, baseIntervals.length - 1)];
-  } else if (confidence === 3) {
-    nextInterval =
-      baseIntervals[Math.min(reviewCount + 1, baseIntervals.length - 1)];
-  } else {
-    nextInterval =
-      baseIntervals[Math.min(reviewCount + 2, baseIntervals.length - 1)];
-  }
-
-  const nextDate = new Date();
-  nextDate.setDate(nextDate.getDate() + nextInterval);
-  return nextDate;
-}
-
 interface DueProblemsProps {
   problems: UserProblem[];
-  onReviewComplete: (problem: UserProblem, confidence: 1 | 2 | 3 | 4) => Promise<void>;
+  onReviewComplete: (
+    problem: UserProblem,
+    confidence: 1 | 2 | 3 | 4
+  ) => Promise<void>;
 }
 
 export function DueProblems({ problems, onReviewComplete }: DueProblemsProps) {
-  const [selectedProblem, setSelectedProblem] = useState<UserProblem | null>(null);
+  const [selectedProblem, setSelectedProblem] = useState<UserProblem | null>(
+    null
+  );
   const [showConfidence, setShowConfidence] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -74,7 +29,7 @@ export function DueProblems({ problems, onReviewComplete }: DueProblemsProps) {
       setShowConfidence(false);
       setSelectedProblem(null);
     } catch (error) {
-      console.error('Error completing review:', error);
+      console.error("Error completing review:", error);
     } finally {
       setIsSubmitting(false);
     }
@@ -87,7 +42,8 @@ export function DueProblems({ problems, onReviewComplete }: DueProblemsProps) {
           Due for Review
         </h2>
         <p className="text-gray-600 dark:text-gray-400">
-          No problems are due for review. Great job staying on top of your studies!
+          No problems are due for review. Great job staying on top of your
+          studies!
         </p>
       </div>
     );
@@ -104,7 +60,9 @@ export function DueProblems({ problems, onReviewComplete }: DueProblemsProps) {
         <div className="divide-y divide-gray-200 dark:divide-gray-700">
           {problems.map((problem, index) => (
             <div
-              key={`${problem.id || `problem-${index}`}-${problem.nextReviewDate?.toISOString() || Date.now()}`}
+              key={`${problem.id || `problem-${index}`}-${
+                problem.nextReviewDate?.toISOString() || Date.now()
+              }`}
               className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700"
             >
               <div className="flex items-center space-x-4">

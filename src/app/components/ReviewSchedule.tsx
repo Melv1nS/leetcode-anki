@@ -5,11 +5,8 @@ import type { UserProblem } from "@/app/types/problems";
 import { CONFIDENCE_LABELS } from "@/app/components/ConfidenceModal";
 import { useState } from "react";
 import { ReviewHistory } from "@/app/components/ReviewHistory";
-import { toggleSkipReview } from "@/app/actions/problems";
-import { toast } from "react-hot-toast";
-import { format, isSameDay, isSameMonth } from "date-fns";
 
-interface ReviewProblem extends Omit<UserProblem, 'userId'> {
+interface ReviewProblem extends Omit<UserProblem, "userId"> {
   nextReviewDate: Date;
   reviewCount: number;
   lastConfidence: 1 | 2 | 3 | 4;
@@ -21,34 +18,40 @@ interface ReviewProblem extends Omit<UserProblem, 'userId'> {
 
 interface ReviewScheduleProps {
   problems: ReviewProblem[];
-  userId: string;
-  onSkipReviewToggle: (problemId: string, skipReview: boolean) => Promise<void>;
-  interviewDate?: Date;
+  onReviewComplete: (problemId: string, confidence: number) => void;
 }
 
 interface GroupedProblems {
   [key: string]: ReviewProblem[];
 }
 
-export function ReviewSchedule({ problems, userId, onSkipReviewToggle, interviewDate }: ReviewScheduleProps) {
-  const [selectedProblem, setSelectedProblem] = useState<ReviewProblem | null>(null);
+export function ReviewSchedule({
+  problems,
+  onReviewComplete,
+}: ReviewScheduleProps) {
+  const [selectedProblem, setSelectedProblem] = useState<ReviewProblem | null>(
+    null
+  );
 
   // Group problems by date
-  const groupedProblems = problems.reduce((groups: GroupedProblems, problem) => {
-    const date = problem.isAutoScheduled 
-      ? problem.scheduledFor!.toLocaleDateString()
-      : problem.nextReviewDate.toLocaleDateString();
-    
-    if (!groups[date]) {
-      groups[date] = [];
-    }
-    groups[date].push(problem);
-    return groups;
-  }, {});
+  const groupedProblems = problems.reduce(
+    (groups: GroupedProblems, problem) => {
+      const date = problem.isAutoScheduled
+        ? problem.scheduledFor!.toLocaleDateString()
+        : problem.nextReviewDate.toLocaleDateString();
+
+      if (!groups[date]) {
+        groups[date] = [];
+      }
+      groups[date].push(problem);
+      return groups;
+    },
+    {}
+  );
 
   // Sort dates
-  const sortedDates = Object.keys(groupedProblems).sort((a, b) => 
-    new Date(a).getTime() - new Date(b).getTime()
+  const sortedDates = Object.keys(groupedProblems).sort(
+    (a, b) => new Date(a).getTime() - new Date(b).getTime()
   );
 
   const today = new Date();
@@ -65,7 +68,8 @@ export function ReviewSchedule({ problems, userId, onSkipReviewToggle, interview
         {problems.length === 0 ? (
           <div className="px-6 py-8 text-center">
             <p className="text-gray-600 dark:text-gray-300">
-              No problems completed yet. Start solving problems to build your review schedule!
+              No problems completed yet. Start solving problems to build your
+              review schedule!
             </p>
           </div>
         ) : (
@@ -74,23 +78,28 @@ export function ReviewSchedule({ problems, userId, onSkipReviewToggle, interview
               {sortedDates.map((date) => {
                 const dateObj = new Date(date);
                 const isOverdue = dateObj < today;
-                const isToday = dateObj.toLocaleDateString() === today.toLocaleDateString();
-                const isInterview = interviewDate && isSameDay(dateObj, interviewDate);
-                
+                const isToday =
+                  dateObj.toLocaleDateString() === today.toLocaleDateString();
+
                 return (
                   <div key={date} className="space-y-3">
                     <div className="flex items-center gap-2">
-                      <h3 className={`text-sm font-medium ${
-                        isOverdue ? 'text-red-600 dark:text-red-400' :
-                        isToday ? 'text-green-600 dark:text-green-400' :
-                        'text-gray-900 dark:text-white'
-                      }`}>
-                        {isToday ? 'Today' : 
-                         dateObj.toLocaleDateString(undefined, { 
-                           weekday: 'long', 
-                           month: 'long', 
-                           day: 'numeric' 
-                         })}
+                      <h3
+                        className={`text-sm font-medium ${
+                          isOverdue
+                            ? "text-red-600 dark:text-red-400"
+                            : isToday
+                            ? "text-green-600 dark:text-green-400"
+                            : "text-gray-900 dark:text-white"
+                        }`}
+                      >
+                        {isToday
+                          ? "Today"
+                          : dateObj.toLocaleDateString(undefined, {
+                              weekday: "long",
+                              month: "long",
+                              day: "numeric",
+                            })}
                       </h3>
                       <span className="text-xs text-gray-500 dark:text-gray-400">
                         {groupedProblems[date].length} problems
@@ -101,11 +110,11 @@ export function ReviewSchedule({ problems, userId, onSkipReviewToggle, interview
                         <div
                           key={problem.id}
                           className={`p-4 rounded-lg border ${
-                            problem.skipReview 
-                              ? 'border-gray-200 dark:border-gray-700 opacity-60' 
+                            problem.skipReview
+                              ? "border-gray-200 dark:border-gray-700 opacity-60"
                               : isOverdue
-                              ? 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/10'
-                              : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+                              ? "border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/10"
+                              : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
                           } cursor-pointer transition-colors`}
                           onClick={() => setSelectedProblem(problem)}
                         >
@@ -123,18 +132,28 @@ export function ReviewSchedule({ problems, userId, onSkipReviewToggle, interview
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  onSkipReviewToggle(problem.id, !problem.skipReview);
+                                  onReviewComplete(
+                                    problem.id,
+                                    problem.lastConfidence
+                                  );
                                 }}
                                 className="text-xs font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                               >
-                                {problem.skipReview ? "Add to Review" : "Skip"}
+                                Review
                               </button>
                             </div>
                             <div className="flex items-center gap-2">
-                              <DifficultyBadge difficulty={problem.difficulty} />
+                              <DifficultyBadge
+                                difficulty={problem.difficulty}
+                              />
                               {problem.lastConfidence && (
                                 <span className="text-xs text-gray-500 dark:text-gray-400">
-                                  Last: {CONFIDENCE_LABELS[problem.lastConfidence.toString()]}
+                                  Last:{" "}
+                                  {
+                                    CONFIDENCE_LABELS[
+                                      problem.lastConfidence.toString()
+                                    ]
+                                  }
                                 </span>
                               )}
                             </div>
@@ -155,11 +174,11 @@ export function ReviewSchedule({ problems, userId, onSkipReviewToggle, interview
         )}
       </div>
 
-      <ReviewHistory 
+      <ReviewHistory
         history={selectedProblem?.reviewHistory || []}
         isOpen={!!selectedProblem}
         onClose={() => setSelectedProblem(null)}
       />
     </>
   );
-} 
+}

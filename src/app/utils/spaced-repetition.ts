@@ -15,14 +15,17 @@ export function getNextReviewDate(
   if (confidence === 1) {
     nextInterval = baseIntervals[0];
   } else if (confidence === 2) {
-    nextInterval = baseIntervals[Math.min(reviewCount, baseIntervals.length - 1)];
+    nextInterval =
+      baseIntervals[Math.min(reviewCount, baseIntervals.length - 1)];
   } else if (confidence === 3) {
-    nextInterval = baseIntervals[Math.min(reviewCount + 1, baseIntervals.length - 1)];
+    nextInterval =
+      baseIntervals[Math.min(reviewCount + 1, baseIntervals.length - 1)];
   } else {
-    nextInterval = baseIntervals[Math.min(reviewCount + 2, baseIntervals.length - 1)];
+    nextInterval =
+      baseIntervals[Math.min(reviewCount + 2, baseIntervals.length - 1)];
   }
 
   const nextDate = new Date();
   nextDate.setDate(nextDate.getDate() + nextInterval);
   return nextDate;
-} 
+}

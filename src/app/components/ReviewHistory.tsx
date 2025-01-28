@@ -9,11 +9,15 @@ interface ReviewHistoryProps {
   onClose: () => void;
 }
 
-export function ReviewHistory({ history, isOpen, onClose }: ReviewHistoryProps) {
+export function ReviewHistory({
+  history,
+  isOpen,
+  onClose,
+}: ReviewHistoryProps) {
   if (!isOpen) return null;
 
-  const sortedHistory = [...history].sort((a, b) => 
-    b.date.getTime() - a.date.getTime()
+  const sortedHistory = [...history].sort(
+    (a, b) => b.date.getTime() - a.date.getTime()
   );
 
   return (
@@ -27,8 +31,18 @@ export function ReviewHistory({ history, isOpen, onClose }: ReviewHistoryProps) 
             onClick={onClose}
             className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            <svg
+              className="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         </div>
@@ -37,7 +51,8 @@ export function ReviewHistory({ history, isOpen, onClose }: ReviewHistoryProps) 
             <div key={index} className="py-3">
               <div className="flex justify-between items-center">
                 <span className="text-sm font-medium text-gray-900 dark:text-white">
-                  {review.date.toLocaleDateString()} at {review.date.toLocaleTimeString()}
+                  {review.date.toLocaleDateString()} at{" "}
+                  {review.date.toLocaleTimeString()}
                 </span>
                 <span className="text-sm text-gray-500 dark:text-gray-400">
                   {CONFIDENCE_LABELS[review.confidence.toString()]}
@@ -49,4 +64,4 @@ export function ReviewHistory({ history, isOpen, onClose }: ReviewHistoryProps) 
       </div>
     </div>
   );
-} 
+}

@@ -17,7 +17,7 @@ export function ConfirmationModal({
   title,
   message,
   confirmText = "Confirm",
-  cancelText = "Cancel"
+  cancelText = "Cancel",
 }: ConfirmationModalProps) {
   if (!isOpen) return null;
 
@@ -27,9 +27,7 @@ export function ConfirmationModal({
         <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">
           {title}
         </h3>
-        <p className="text-gray-600 dark:text-gray-400 mb-6">
-          {message}
-        </p>
+        <p className="text-gray-600 dark:text-gray-400 mb-6">{message}</p>
         <div className="flex justify-end gap-3">
           <button
             onClick={onClose}
@@ -50,4 +48,4 @@ export function ConfirmationModal({
       </div>
     </div>
   );
-} 
+}

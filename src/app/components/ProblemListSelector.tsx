@@ -5,7 +5,10 @@ interface ProblemListSelectorProps {
   onListChange: (list: "blind75" | "neetcode150") => void;
 }
 
-export function ProblemListSelector({ selectedList, onListChange }: ProblemListSelectorProps) {
+export function ProblemListSelector({
+  selectedList,
+  onListChange,
+}: ProblemListSelectorProps) {
   return (
     <div className="flex gap-4 mb-6">
       <button
@@ -30,4 +33,4 @@ export function ProblemListSelector({ selectedList, onListChange }: ProblemListS
       </button>
     </div>
   );
-} 
+}
