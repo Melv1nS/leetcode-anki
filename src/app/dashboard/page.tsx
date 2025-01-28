@@ -1,34 +1,31 @@
 "use client";
 
 import { useUser, SignOutButton } from "@clerk/nextjs";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { BLIND75_CATEGORIES } from "@/app/data/blind75";
-import type { Problem } from "@/app/types/problems";
-
-function DifficultyBadge({
-  difficulty,
-}: {
-  difficulty: Problem["difficulty"];
-}) {
-  const colors = {
-    Easy: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
-    Medium:
-      "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300",
-    Hard: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
-  };
-
-  return (
-    <span
-      className={`px-2 py-1 rounded-full text-xs font-medium ${colors[difficulty]}`}
-    >
-      {difficulty}
-    </span>
-  );
-}
+import type { UserProblem } from "@/app/types/problems";
+import { DueProblems } from "@/app/components/DueProblems";
+import { DifficultyBadge } from "@/app/components/DifficultyBadge";
 
 export default function Dashboard() {
-  const { user } = useUser();
+  const { user, isLoaded } = useUser();
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [isLoading, setIsLoading] = useState(true);
+  const dueProblems: UserProblem[] = [];
+
+  useEffect(() => {
+    if (isLoaded) {
+      setIsLoading(false);
+    }
+  }, [isLoaded]);
+
+  if (!isLoaded || isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
 
   const filteredCategories =
     selectedCategory === "all"
@@ -53,6 +50,11 @@ export default function Dashboard() {
               Sign Out
             </button>
           </SignOutButton>
+        </div>
+
+        {/* Due Problems Section */}
+        <div className="mb-8">
+          <DueProblems problems={dueProblems} />
         </div>
 
         {/* Category Filter */}

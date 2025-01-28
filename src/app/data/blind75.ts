@@ -1,16 +1,21 @@
-import { Category } from "@/app/types/problems";
+import type { Problem } from "@/app/types/problems";
 
-export const BLIND75_CATEGORIES: Category[] = [
+interface CategoryData {
+  name: string;
+  problems: Problem[];
+}
+
+export const BLIND75_CATEGORIES: CategoryData[] = [
   {
     name: "Arrays & Hashing",
     problems: [
       {
         id: "1",
         title: "Two Sum",
-        difficulty: "Easy",
-        category: "Arrays & Hashing",
-        isCompleted: false,
         url: "https://leetcode.com/problems/two-sum/",
+        difficulty: "Easy",
+        isCompleted: false,
+        category: "Arrays & Hashing",
       },
       {
         id: "217",

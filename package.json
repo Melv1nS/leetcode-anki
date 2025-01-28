@@ -11,7 +11,7 @@
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,md,mdx,css,yaml,yml}\"",
     "check": "prettier --check \"**/*.{ts,tsx,js,jsx,md,mdx,css,yaml,yml}\"",
     "type-check": "tsc --noEmit",
-    "verify": "npm run check && npm run lint && npm run type-check",
+    "verify": "npm run format && npm run lint && npm run type-check",
     "prepare": "husky"
   },
   "dependencies": {
