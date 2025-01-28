@@ -2,87 +2,8 @@
 
 import { useUser, SignOutButton } from "@clerk/nextjs";
 import { useState } from "react";
-
-interface Category {
-  name: string;
-  problems: Problem[];
-}
-
-interface Problem {
-  id: string;
-  title: string;
-  difficulty: "Easy" | "Medium" | "Hard";
-  category: string;
-  isCompleted: boolean;
-  url: string;
-}
-
-// Dummy data
-const CATEGORIES: Category[] = [
-  {
-    name: "Arrays & Hashing",
-    problems: [
-      {
-        id: "1",
-        title: "Two Sum",
-        difficulty: "Easy",
-        category: "Arrays & Hashing",
-        isCompleted: false,
-        url: "https://leetcode.com/problems/two-sum/",
-      },
-      {
-        id: "2",
-        title: "Valid Anagram",
-        difficulty: "Easy",
-        category: "Arrays & Hashing",
-        isCompleted: false,
-        url: "https://leetcode.com/problems/valid-anagram/",
-      },
-    ],
-  },
-  {
-    name: "Two Pointers",
-    problems: [
-      {
-        id: "3",
-        title: "Valid Palindrome",
-        difficulty: "Easy",
-        category: "Two Pointers",
-        isCompleted: false,
-        url: "https://leetcode.com/problems/valid-palindrome/",
-      },
-      {
-        id: "4",
-        title: "3Sum",
-        difficulty: "Medium",
-        category: "Two Pointers",
-        isCompleted: false,
-        url: "https://leetcode.com/problems/3sum/",
-      },
-    ],
-  },
-  {
-    name: "Trees",
-    problems: [
-      {
-        id: "5",
-        title: "Invert Binary Tree",
-        difficulty: "Easy",
-        category: "Trees",
-        isCompleted: false,
-        url: "https://leetcode.com/problems/invert-binary-tree/",
-      },
-      {
-        id: "6",
-        title: "Binary Tree Level Order Traversal",
-        difficulty: "Medium",
-        category: "Trees",
-        isCompleted: false,
-        url: "https://leetcode.com/problems/binary-tree-level-order-traversal/",
-      },
-    ],
-  },
-];
+import { BLIND75_CATEGORIES } from "@/app/data/blind75";
+import type { Problem } from "@/app/types/problems";
 
 function DifficultyBadge({
   difficulty,
@@ -111,8 +32,8 @@ export default function Dashboard() {
 
   const filteredCategories =
     selectedCategory === "all"
-      ? CATEGORIES
-      : CATEGORIES.filter((cat) => cat.name === selectedCategory);
+      ? BLIND75_CATEGORIES
+      : BLIND75_CATEGORIES.filter((cat) => cat.name === selectedCategory);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -147,7 +68,7 @@ export default function Dashboard() {
           >
             All
           </button>
-          {CATEGORIES.map((category) => (
+          {BLIND75_CATEGORIES.map((category) => (
             <button
               key={category.name}
               onClick={() => setSelectedCategory(category.name)}
