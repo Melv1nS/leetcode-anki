@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ClerkProvider } from "@clerk/nextjs";
 import { ErrorBoundary } from "@/app/components/ErrorBoundary";
+import { Toaster } from 'react-hot-toast';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,6 +32,7 @@ export default function RootLayout({
       <ClerkProvider>
         <ErrorBoundary>
           <body suppressHydrationWarning>
+            <Toaster position="bottom-right" />
             <main className="min-h-screen bg-white dark:bg-gray-900 antialiased">
               {children}
             </main>

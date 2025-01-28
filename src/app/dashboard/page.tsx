@@ -3,21 +3,237 @@
 import { useUser, SignOutButton } from "@clerk/nextjs";
 import { useState, useEffect } from "react";
 import { BLIND75_CATEGORIES } from "@/app/data/blind75";
+import { NEETCODE150_CATEGORIES } from "@/app/data/neetcode150";
 import type { UserProblem } from "@/app/types/problems";
 import { DueProblems } from "@/app/components/DueProblems";
 import { DifficultyBadge } from "@/app/components/DifficultyBadge";
+import { getCompletedProblems, toggleProblemStatus, getUserProgress, toggleSkipReview, clearUserProgress } from "@/app/actions/problems";
+import { toast } from "react-hot-toast";
+import { ConfidenceModal } from "@/app/components/ConfidenceModal";
+import { getNextReviewDate } from "@/app/utils/spaced-repetition";
+import { ConfirmationModal } from "@/app/components/ConfirmationModal";
+import { InterviewSettings } from "@/app/components/InterviewSettings";
+import Link from "next/link";
+import { ProblemListSelector } from "@/app/components/ProblemListSelector";
+import { setInterviewDate } from "@/app/actions/settings";
 
 export default function Dashboard() {
   const { user, isLoaded } = useUser();
-  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [selectedList, setSelectedList] = useState<"blind75" | "neetcode150">("blind75");
   const [isLoading, setIsLoading] = useState(true);
-  const dueProblems: UserProblem[] = [];
+  const [completedProblems, setCompletedProblems] = useState<Set<string>>(new Set());
+  const [problemStats, setProblemStats] = useState<Record<string, any>>({});
+  const [selectedProblem, setSelectedProblem] = useState<UserProblem | null>(null);
+  const [showConfidence, setShowConfidence] = useState(false);
+  const [showClearConfirmation, setShowClearConfirmation] = useState(false);
+
+  const fetchUserProgress = async () => {
+    if (!user?.id) return;
+    
+    try {
+      const progress = await getUserProgress(user.id);
+      // Only mark problems as completed if they exist in both arrays and stats
+      const validCompletedProblems = progress.completedProblems.filter(
+        id => progress.problemStats[id]
+      );
+      setCompletedProblems(new Set(validCompletedProblems));
+      setProblemStats(progress.problemStats);
+    } catch (error) {
+      console.error('Error fetching progress:', error);
+      toast.error('Failed to load your progress');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (isLoaded) {
-      setIsLoading(false);
+      fetchUserProgress();
     }
-  }, [isLoaded]);
+  }, [isLoaded, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleProblemToggle = async (problem: UserProblem) => {
+    if (!user?.id) return;
+    
+    if (!completedProblems.has(problem.id)) {
+      setSelectedProblem(problem);
+      setShowConfidence(true);
+    } else {
+      // Handle unchecking directly
+      await handleConfidenceSelect(problem, null);
+    }
+  };
+
+  const handleConfidenceSelect = async (problem: UserProblem, confidence: 1 | 2 | 3 | 4 | null) => {
+    if (!user?.id) return;
+
+    const isCompleting = confidence !== null;
+    const newCompletedProblems = new Set(completedProblems);
+    const newProblemStats = { ...problemStats };
+
+    if (isCompleting) {
+      newCompletedProblems.add(problem.id);
+      const now = new Date();
+      const nextReviewDate = getNextReviewDate(problem.difficulty, 0, confidence);
+      
+      const existingStats = problemStats[problem.id];
+      newProblemStats[problem.id] = {
+        ...existingStats, // Preserve existing stats if any
+        lastCompleted: now,
+        nextReviewDate,
+        completionCount: (existingStats?.completionCount || 0) + 1,
+        lastConfidence: confidence,
+        reviewHistory: [
+          ...(existingStats?.reviewHistory || []),
+          {
+            date: now,
+            confidence,
+          },
+        ],
+      };
+    } else {
+      newCompletedProblems.delete(problem.id);
+      delete newProblemStats[problem.id];
+    }
+
+    // Optimistically update UI
+    setCompletedProblems(newCompletedProblems);
+    setProblemStats(newProblemStats);
+
+    try {
+      const success = await toggleProblemStatus(
+        user.id, 
+        problem.id, 
+        isCompleting, 
+        confidence || undefined,
+        problem.difficulty
+      );
+      if (!success) throw new Error('Failed to update problem status');
+      
+      toast.success(isCompleting ? 'Problem marked as completed!' : 'Problem marked as incomplete');
+    } catch (error) {
+      // Revert on error
+      if (isCompleting) {
+        newCompletedProblems.delete(problem.id);
+        delete newProblemStats[problem.id];
+      } else {
+        newCompletedProblems.add(problem.id);
+        // Restore previous stats
+        newProblemStats[problem.id] = problemStats[problem.id];
+      }
+      setCompletedProblems(newCompletedProblems);
+      setProblemStats(newProblemStats);
+      toast.error('Failed to update problem status');
+    }
+    
+    setShowConfidence(false);
+    setSelectedProblem(null);
+  };
+
+  const handleSkipReviewToggle = async (problemId: string, skipReview: boolean) => {
+    if (!user?.id) return;
+
+    const newProblemStats = { ...problemStats };
+    newProblemStats[problemId] = {
+      ...newProblemStats[problemId],
+      skipReview,
+    };
+
+    // Optimistically update UI
+    setProblemStats(newProblemStats);
+
+    try {
+      const success = await toggleSkipReview(user.id, problemId, skipReview);
+      if (!success) throw new Error('Failed to update review status');
+      toast.success(skipReview ? 'Problem marked as not for review' : 'Problem added back to review schedule');
+    } catch (error) {
+      // Revert on error
+      newProblemStats[problemId] = {
+        ...newProblemStats[problemId],
+        skipReview: !skipReview,
+      };
+      setProblemStats(newProblemStats);
+      toast.error('Failed to update review status');
+    }
+  };
+
+  const handleClearProgress = async () => {
+    if (!user?.id) return;
+
+    try {
+      const success = await clearUserProgress(user.id);
+      if (!success) throw new Error('Failed to clear progress');
+      
+      // Clear local state
+      setCompletedProblems(new Set());
+      setProblemStats({});
+      toast.success('Progress cleared successfully');
+    } catch (error) {
+      toast.error('Failed to clear progress');
+    }
+  };
+
+  const handleReviewComplete = async (problem: UserProblem, confidence: 1 | 2 | 3 | 4) => {
+    if (!user?.id) return;
+
+    const now = new Date();
+    const nextReviewDate = getNextReviewDate(problem.difficulty, problem.reviewCount + 1, confidence);
+    
+    const newProblemStats = { ...problemStats };
+    const existingStats = problemStats[problem.id];
+    
+    newProblemStats[problem.id] = {
+      ...existingStats,
+      lastCompleted: now,
+      nextReviewDate,
+      reviewCount: (existingStats.reviewCount || 0) + 1,
+      lastConfidence: confidence,
+      reviewHistory: [
+        ...(existingStats.reviewHistory || []),
+        {
+          date: now,
+          confidence,
+        },
+      ],
+    };
+
+    // Optimistically update UI
+    setProblemStats(newProblemStats);
+
+    try {
+      const success = await toggleProblemStatus(
+        user.id,
+        problem.id,
+        true,
+        confidence,
+        problem.difficulty
+      );
+      if (!success) throw new Error('Failed to update review status');
+      
+      // Fetch fresh data to ensure everything is in sync
+      await fetchUserProgress();
+      toast.success('Review completed!');
+    } catch (error) {
+      // Revert on error
+      setProblemStats(problemStats);
+      toast.error('Failed to update review status');
+    }
+  };
+
+  const handleSetInterviewDate = async (date: Date) => {
+    if (!user?.id) return;
+    
+    try {
+      const success = await setInterviewDate(user.id, date, selectedList);
+      if (!success) throw new Error('Failed to set interview date');
+      
+      await fetchUserProgress();
+      toast.success('Interview date set successfully!');
+    } catch (error) {
+      console.error('Error setting interview date:', error);
+      toast.error('Failed to set interview date');
+    }
+  };
 
   if (!isLoaded || isLoading) {
     return (
@@ -27,10 +243,43 @@ export default function Dashboard() {
     );
   }
 
-  const filteredCategories =
-    selectedCategory === "all"
-      ? BLIND75_CATEGORIES
-      : BLIND75_CATEGORIES.filter((cat) => cat.name === selectedCategory);
+  const currentProblemList = selectedList === "blind75" ? BLIND75_CATEGORIES : NEETCODE150_CATEGORIES;
+
+  // Calculate due problems
+  const dueProblems = Object.entries(problemStats)
+    .filter(([id, stats]) => {
+      if (!stats || !stats.nextReviewDate) return false;
+      const isNotSkipped = !stats.skipReview;
+      const isDue = new Date() >= new Date(stats.nextReviewDate);
+      return isNotSkipped && isDue;
+    })
+    .map(([id, stats]) => {
+      const problem = currentProblemList
+        .flatMap(cat => cat.problems)
+        .find(p => p.id === id);
+      
+      if (!problem) return null;
+
+      return {
+        ...problem,
+        ...stats,
+        nextReviewDate: new Date(stats.nextReviewDate),
+      };
+    })
+    .filter((problem): problem is UserProblem => problem !== null);
+
+  // Get all completed problems with their stats
+  const completedProblemsWithStats = Object.entries(problemStats)
+    .map(([id, stats]) => {
+      const problem = currentProblemList
+        .flatMap(cat => cat.problems)
+        .find(p => p.id === id);
+      return {
+        ...problem!,
+        ...stats,
+        nextReviewDate: new Date(stats.nextReviewDate),
+      };
+    });
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -45,50 +294,44 @@ export default function Dashboard() {
               Track your progress and keep practicing
             </p>
           </div>
-          <SignOutButton>
-            <button className="px-4 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-800 dark:text-gray-300 rounded-md border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
-              Sign Out
+          <div className="flex gap-3">
+            <Link
+              href="/schedule"
+              className="px-4 py-2 text-sm font-medium text-indigo-600 bg-white dark:bg-gray-800 dark:text-indigo-400 rounded-md border border-indigo-300 dark:border-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
+            >
+              View Schedule
+            </Link>
+            <InterviewSettings onSetDate={handleSetInterviewDate} />
+            <button
+              onClick={() => setShowClearConfirmation(true)}
+              className="px-4 py-2 text-sm font-medium text-red-600 bg-white dark:bg-gray-800 dark:text-red-400 rounded-md border border-red-300 dark:border-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+            >
+              Clear History
             </button>
-          </SignOutButton>
+            <SignOutButton>
+              <button className="px-4 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-800 dark:text-gray-300 rounded-md border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
+                Sign Out
+              </button>
+            </SignOutButton>
+          </div>
         </div>
+
+        <ProblemListSelector 
+          selectedList={selectedList}
+          onListChange={setSelectedList}
+        />
 
         {/* Due Problems Section */}
-        <div className="mb-8">
-          <DueProblems problems={dueProblems} />
-        </div>
-
-        {/* Category Filter */}
-        <div className="mb-8 flex gap-2 overflow-x-auto pb-2">
-          <button
-            onClick={() => setSelectedCategory("all")}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors
-              ${
-                selectedCategory === "all"
-                  ? "bg-indigo-600 text-white"
-                  : "bg-white text-gray-700 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-              }`}
-          >
-            All
-          </button>
-          {BLIND75_CATEGORIES.map((category) => (
-            <button
-              key={category.name}
-              onClick={() => setSelectedCategory(category.name)}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors
-                ${
-                  selectedCategory === category.name
-                    ? "bg-indigo-600 text-white"
-                    : "bg-white text-gray-700 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                }`}
-            >
-              {category.name}
-            </button>
-          ))}
+        <div className="mb-6">
+          <DueProblems 
+            problems={dueProblems}
+            onReviewComplete={handleReviewComplete}
+          />
         </div>
 
         {/* Problem List */}
         <div className="space-y-6">
-          {filteredCategories.map((category) => (
+          {currentProblemList.map((category) => (
             <div
               key={category.name}
               className="bg-white dark:bg-gray-800 rounded-lg shadow"
@@ -107,9 +350,9 @@ export default function Dashboard() {
                     <div className="flex items-center space-x-4">
                       <input
                         type="checkbox"
-                        checked={problem.isCompleted}
-                        onChange={() => {}}
-                        className="h-4 w-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+                        checked={completedProblems.has(problem.id)}
+                        onChange={() => handleProblemToggle(problem)}
+                        className="h-4 w-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 cursor-pointer"
                       />
                       <a
                         href={problem.url}
@@ -128,6 +371,22 @@ export default function Dashboard() {
           ))}
         </div>
       </div>
+
+      <ConfidenceModal 
+        isOpen={showConfidence}
+        onClose={() => setShowConfidence(false)}
+        onSelect={(confidence) => selectedProblem && handleConfidenceSelect(selectedProblem, confidence)}
+      />
+
+      <ConfirmationModal
+        isOpen={showClearConfirmation}
+        onClose={() => setShowClearConfirmation(false)}
+        onConfirm={handleClearProgress}
+        title="Clear Progress"
+        message="Are you sure you want to clear all your progress? This will remove all completed problems and their review history. This action cannot be undone."
+        confirmText="Clear All Progress"
+        cancelText="Cancel"
+      />
     </div>
   );
 }

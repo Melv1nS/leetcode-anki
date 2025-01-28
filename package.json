@@ -16,11 +16,14 @@
   },
   "dependencies": {
     "@clerk/nextjs": "^6.10.3",
+    "@headlessui/react": "^2.2.0",
+    "date-fns": "^4.1.0",
     "firebase": "^11.2.0",
     "firebase-admin": "^13.0.2",
     "next": "15.1.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-hot-toast": "^2.5.1",
     "svix": "^1.45.1"
   },
   "devDependencies": {

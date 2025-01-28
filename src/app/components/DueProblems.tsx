@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { DifficultyBadge } from "@/app/components/DifficultyBadge";
 import type { UserProblem } from "@/app/types/problems";
+import { ConfidenceModal } from "@/app/components/ConfidenceModal";
 
 interface DueProblem extends UserProblem {
   nextReviewDate: Date;
@@ -28,10 +29,10 @@ function getNextReviewDate(
     Hard: [4, 10, 20, 40, 80],
   };
 
-  // If confidence is 1 (Again), reset to first interval
-  // If confidence is 2 (Hard), stay at current interval
-  // If confidence is 3 (Good), move to next interval
-  // If confidence is 4 (Easy), skip next interval
+  // If confidence is 1, reset to first interval
+  // If confidence is 2, stay at current interval
+  // If confidence is 3, move to next interval
+  // If confidence is 4, skip next interval
 
   const baseIntervals = intervals[difficulty];
   let nextInterval: number;
@@ -54,102 +55,93 @@ function getNextReviewDate(
   return nextDate;
 }
 
-export function DueProblems({ problems }: { problems: UserProblem[] }) {
-  const [selectedProblem, setSelectedProblem] = useState<DueProblem | null>(
-    null
-  );
-  const [showConfidence, setShowConfidence] = useState(false);
+interface DueProblemsProps {
+  problems: UserProblem[];
+  onReviewComplete: (problem: UserProblem, confidence: 1 | 2 | 3 | 4) => Promise<void>;
+}
 
-  const handleProblemComplete = (problem: DueProblem) => {
-    setSelectedProblem(problem);
-    setShowConfidence(true);
-  };
+export function DueProblems({ problems, onReviewComplete }: DueProblemsProps) {
+  const [selectedProblem, setSelectedProblem] = useState<UserProblem | null>(null);
+  const [showConfidence, setShowConfidence] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleConfidenceSelect = async (confidence: 1 | 2 | 3 | 4) => {
-    if (!selectedProblem) return;
+    if (!selectedProblem || isSubmitting) return;
 
-    const nextReviewDate = getNextReviewDate(
-      selectedProblem.difficulty,
-      selectedProblem.reviewCount,
-      confidence
-    );
-
-    // TODO: Update problem in Firebase
-    console.log("Updating problem:", {
-      ...selectedProblem,
-      nextReviewDate,
-      reviewCount: selectedProblem.reviewCount + 1,
-      lastConfidence: confidence,
-    });
-
-    setShowConfidence(false);
-    setSelectedProblem(null);
+    try {
+      setIsSubmitting(true);
+      await onReviewComplete(selectedProblem, confidence);
+      setShowConfidence(false);
+      setSelectedProblem(null);
+    } catch (error) {
+      console.error('Error completing review:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-      <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+  if (problems.length === 0) {
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
           Due for Review
         </h2>
+        <p className="text-gray-600 dark:text-gray-400">
+          No problems are due for review. Great job staying on top of your studies!
+        </p>
       </div>
-      <div className="divide-y divide-gray-200 dark:divide-gray-700">
-        {problems.map((problem) => (
-          <div
-            key={problem.id}
-            className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700"
-          >
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={() => handleProblemComplete(problem as DueProblem)}
-                className="px-3 py-1 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700"
-              >
-                Complete
-              </button>
-              <a
-                href={problem.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-gray-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400"
-              >
-                {problem.title}
-              </a>
-            </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-500">
-                Next review: {problem.nextReviewDate.toLocaleDateString()}
-              </span>
+    );
+  }
+
+  return (
+    <>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+            Due for Review ({problems.length})
+          </h2>
+        </div>
+        <div className="divide-y divide-gray-200 dark:divide-gray-700">
+          {problems.map((problem, index) => (
+            <div
+              key={`${problem.id || `problem-${index}`}-${problem.nextReviewDate?.toISOString() || Date.now()}`}
+              className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700"
+            >
+              <div className="flex items-center space-x-4">
+                <button
+                  onClick={() => {
+                    setSelectedProblem(problem);
+                    setShowConfidence(true);
+                  }}
+                  className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-500"
+                >
+                  Complete Review
+                </button>
+                <a
+                  href={problem.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-gray-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400"
+                >
+                  {problem.title}
+                </a>
+              </div>
               <DifficultyBadge difficulty={problem.difficulty} />
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
-      {/* Confidence Selection Modal */}
-      {showConfidence && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-sm w-full">
-            <h3 className="text-lg font-semibold mb-4">
-              How well did you solve it?
-            </h3>
-            <div className="grid grid-cols-2 gap-3">
-              {(Object.entries(CONFIDENCE_LABELS) as [string, string][]).map(
-                ([value, label]) => (
-                  <button
-                    key={value}
-                    onClick={() =>
-                      handleConfidenceSelect(parseInt(value) as 1 | 2 | 3 | 4)
-                    }
-                    className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700"
-                  >
-                    {label}
-                  </button>
-                )
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+      <ConfidenceModal
+        isOpen={showConfidence}
+        onClose={() => {
+          if (!isSubmitting) {
+            setShowConfidence(false);
+            setSelectedProblem(null);
+          }
+        }}
+        onSelect={handleConfidenceSelect}
+      />
+    </>
   );
 }
